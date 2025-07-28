@@ -107,9 +107,13 @@
       enemyCards = [];
       characters.forEach(c => {
         for (let i = 0; i < 2; i++) {
-          allyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
+          const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
+          const rand = Math.floor(Math.random() * (skill.max - skill.min + 1)) + skill.min;
+          allyCards.push({ skill, power: skill.base + rand, rand });
         }
-        enemyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
+        const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
+        const rand = Math.floor(Math.random() * (skill.max - skill.min + 1)) + skill.min;
+        enemyCards.push({ skill, power: skill.base + rand, rand });
       });
     }
 
@@ -126,7 +130,7 @@
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>${card.skill.base} / ${card.skill.min}-${card.skill.max}</div>`;
+          <div class='skill-desc'>기본:${card.skill.base} + 랜덤:${card.rand} → 최종:${card.power}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#player-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
@@ -140,7 +144,7 @@
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>${card.skill.base} / ${card.skill.min}-${card.skill.max}</div>`;
+          <div class='skill-desc'>기본:${card.skill.base} + 랜덤:${card.rand} → 최종:${card.power}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#enemy-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
@@ -165,11 +169,11 @@
     }
 
     attackBtn.addEventListener('click', () => {
-      const damage = selectedAlly.skill.base + Math.floor(Math.random() * (selectedAlly.skill.max - selectedAlly.skill.min + 1)) + selectedAlly.skill.min;
+      const damage = selectedAlly.power;
       const target = enemyPlayers.find(p => p.health > 0);
       if (target) {
         target.health = Math.max(0, target.health - damage);
-        logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! 적에게 ${damage} 피해</div>`;
+        logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! (최종 위력 ${selectedAlly.power}) → 적에게 ${damage} 피해</div>`;
       }
       renderCharacterLists();
       checkGameOver();
