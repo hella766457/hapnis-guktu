@@ -24,7 +24,7 @@
     #battle-log { height: 120px; overflow-y: auto; background: #fff;
                   border: 1px solid #ccc; padding: 10px; margin-top: 20px; text-align: left; }
     #char-popup { display: none; position: fixed; top:0; left:0; width:100%; height:100%;
-                 background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+                 background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
     #char-popup .popup-content { background: #fff; padding: 20px; border-radius: 8px;
                                  max-width: 90%; text-align: left; }
     #char-popup ul { padding-left: 20px; margin: 10px 0; }
@@ -63,11 +63,11 @@
         { name:'빈틈', base:10, min:3, max:5, effect:null },
         { name:'바늘 쇄도', base:30, min:6, max:11, effect:null }
       ],
-      passive: { name:'감정 무시', condition: (team)=> team.some(t=>t.health<=50), buff:{type:'atk', value:2} }
+      passive: { name:'감정 무시', condition: team => team.some(t => t.health <= 50), buff:{type:'atk', value:2} }
     }];
-    class Player { constructor(char){ this.char=char; this.health=100; } }
-    const alliedPlayers = characters.map(c=> new Player(c));
-    const enemyPlayers = characters.map(c=> new Player(c));
+    class Player { constructor(char){ this.char = char; this.health = 100; } }
+    const alliedPlayers = characters.map(c => new Player(c));
+    const enemyPlayers = characters.map(c => new Player(c));
     let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemy = null;
     const enemyListDiv = document.getElementById('enemy-character-list');
     const allyListDiv = document.getElementById('ally-character-list');
@@ -75,17 +75,28 @@
     const playerHand = document.getElementById('player-hand');
     const attackBtn = document.getElementById('attack-btn');
     const nextBtn = document.getElementById('next-turn');
-    const logDiv = document.getElementById('battle-log');function renderCharacterLists(){
-  enemyListDiv.innerHTML=''; allyListDiv.innerHTML='';
-  enemyPlayers.forEach(p=>{
-    const el=document.createElement('div'); el.className='char-card'; el.innerHTML=
-      `<div class='char-photo'></div><div class='char-name'>${p.char.name}</div><div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>`;
+    const logDiv = document.getElementById('battle-log');function renderCharacterLists() {
+  enemyListDiv.innerHTML = '';
+  allyListDiv.innerHTML = '';
+  enemyPlayers.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'char-card';
+    el.innerHTML = `
+      <div class='char-photo'></div>
+      <div class='char-name'>${p.char.name}</div>
+      <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
+    `;
     el.addEventListener('click', () => openPopup(p.char));
     enemyListDiv.append(el);
   });
-  alliedPlayers.forEach(p=>{
-    const el=document.createElement('div'); el.className='char-card'; el.innerHTML=
-      `<div class='char-photo'></div><div class='char-name'>${p.char.name}</div><div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>`;
+  alliedPlayers.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'char-card';
+    el.innerHTML = `
+      <div class='char-photo'></div>
+      <div class='char-name'>${p.char.name}</div>
+      <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
+    `;
     el.addEventListener('click', () => openPopup(p.char));
     allyListDiv.append(el);
   });
@@ -94,26 +105,107 @@
 function generatePlaceholders() {
   allyCards = [];
   enemyCards = [];
-
   characters.forEach(c => {
-    // 아군 카드: 캐릭터당 2장
     for (let i = 0; i < 2; i++) {
-      allyCards.push({
-        skill: c.skills[Math.floor(Math.random() * c.skills.length)],
-        power: null
-      });
+      allyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
     }
-    // 적군 카드: 캐릭터당 1장
-    enemyCards.push({
-      skill: c.skills[Math.floor(Math.random() * c.skills.length)],
-      power: null
-    });
+    enemyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
   });
 }
 
-function displayPlaceholders(){
-  selectedAlly=null; selectedEnemy=null;
-  attackBtn.style.display='none'; attackBtn.disabled=true;
-  nextBtn.style.display='none';
-  enemyHand.innerHTML=''; playerHand.innerHTML=''; logDiv.innerHTML='
+function displayPlaceholders() {
+  selectedAlly = null;
+  selectedEnemy = null;
+  attackBtn.style.display = 'none';
+  attackBtn.disabled = true;
+  nextBtn.style.display = 'none';
+  enemyHand.innerHTML = '';
+  playerHand.innerHTML = '';
+  logDiv.innerHTML = '';
 
+  enemyCards.forEach((c, i) => {
+    const effectText = c.skill.effect
+      ? (c.skill.effect.type === 'def'
+        ? '방어+' + c.skill.effect.value
+        : '버프+' + c.skill.effect.value)
+      : '';
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <h3>${c.skill.name}</h3>
+      <div class='photo'></div>
+      <div class='skill-desc'>
+        기본 공격력: ${c.skill.base}, 위력: ${c.skill.min}~${c.skill.max}${effectText ? ', 효과: ' + effectText : ''}
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      if (selectedAlly && !selectedEnemy) {
+        selectedEnemy = c;
+        document.querySelectorAll('#enemy-hand .card')[i].classList.add('selected');
+        attackBtn.style.display = 'inline-block';
+        attackBtn.disabled = false;
+      }
+    });
+    enemyHand.append(el);
+  });
+
+  allyCards.forEach((c, i) => {
+    const effectText = c.skill.effect
+      ? (c.skill.effect.type === 'def'
+        ? '방어+' + c.skill.effect.value
+        : '버프+' + c.skill.effect.value)
+      : '';
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML = `
+      <h3>${c.skill.name}</h3>
+      <div class='photo'></div>
+      <div class='skill-desc'>
+        기본 공격력: ${c.skill.base}, 위력: ${c.skill.min}~${c.skill.max}${effectText ? ', 효과: ' + effectText : ''}
+      </div>
+    `;
+    el.addEventListener('click', () => {
+      if (!selectedAlly) {
+        selectedAlly = c;
+        document.querySelectorAll('#player-hand .card')[i].classList.add('selected');
+      }
+    });
+    playerHand.append(el);
+  });
+}
+
+document.getElementById('start-battle').onclick = () => {
+  document.getElementById('char-menu').style.display = 'none';
+  document.getElementById('char-popup').style.display = 'none';
+  document.getElementById('main-menu').style.display = 'none';
+  document.getElementById('game-container').style.display = 'block';
+  renderCharacterLists();
+  generatePlaceholders();
+  displayPlaceholders();
+};
+document.getElementById('char-menu-btn').onclick = () => document.getElementById('char-menu').style.display = 'block';
+document.getElementById('close-char-menu').onclick = () => document.getElementById('char-menu').style.display = 'none';
+document.getElementById('close-popup').onclick = () => document.getElementById('char-popup').style.display = 'none';
+
+function openPopup(c) {
+  document.getElementById('popup-name').textContent = c.name;
+  const ul = document.getElementById('skill-list');
+  ul.innerHTML = '';
+  c.skills.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = `${s.name} - 기본 공격력 ${s.base}, 위력 ${s.min}~${s.max}`;
+    ul.append(li);
+  });
+  document.getElementById('char-popup').style.display = 'flex';
+}
+
+function log(msg) {
+  const line = document.createElement('div');
+  line.textContent = msg;
+  logDiv.append(line);
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+  </script>
+</body>
+</html>
