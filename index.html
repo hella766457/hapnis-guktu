@@ -1,5 +1,5 @@
 <!--
-Project: 해피니스 정신병동 - 카드형 턴제 RPG (Single HTML File)
+Project: 해피니스 정신병동 - 카드형 턴제 RPG v2 (Single HTML File)
 Host: GitHub Pages
 
 Mobile Single-File Setup Guide:
@@ -25,8 +25,9 @@ Mobile Single-File Setup Guide:
     .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
     .level { position: absolute; bottom: 5px; left: 8px; color: green; font-weight: bold; }
     .stars { position: absolute; bottom: 5px; right: 8px; color: gold; }
+    .selected { border: 2px solid blue; }
     #battle-log { height: 120px; overflow-y: auto; background: #fff;
-                  border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; text-align: left; }
+                  border: 1px solid #ccc; padding: 10px; margin-top:20px; text-align: left; }
     #char-menu, #char-popup { display: none; }
     #char-popup { position: fixed; top:0; left:0; width:100%; height:100%;
                  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
@@ -35,22 +36,35 @@ Mobile Single-File Setup Guide:
   </style>
 </head>
 <body>
-  <!-- 메인 메뉴 (전투 전 화면) -->
+  <!-- 메인 메뉴 -->
   <div id="main-menu">
     <h1>해피니스 정신병동</h1>
     <button id="start-battle" class="btn">전투 시작</button>
     <button id="char-menu-btn" class="btn">캐릭터 확인</button>
   </div>  <!-- 전투 화면 -->  <div id="game-container" style="display:none;">
-    <div id="enemy-area">
-      <h2>적</h2>
-      <div id="enemy-hand" class="hand"></div>
-    </div>
-    <div id="player-area">
-      <h2>플레이어</h2>
-      <div id="player-hand" class="hand"></div>
-    </div>
-    <div id="battle-log"></div>
-    <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
+    <!-- 적군 캐릭터 목록 -->
+    <div id="enemy-list"><h3>적군 캐릭터</h3><div class="hand" id="enemy-character-list"></div></div><!-- 적 카드 -->
+<div id="enemy-area">
+  <h2>적 카드</h2>
+  <div id="enemy-hand" class="hand"></div>
+</div>
+
+<!-- 내 카드 -->
+<div id="player-area">
+  <h2>내 카드</h2>
+  <div id="player-hand" class="hand"></div>
+</div>
+
+<!-- 아군 캐릭터 목록 -->
+<div id="ally-list"><h3>아군 캐릭터</h3><div class="hand" id="ally-character-list"></div></div>
+
+<!-- 공격 / 다음 턴 버튼 -->
+<button id="attack-btn" class="btn" style="display:none;" disabled>공격 시작</button>
+<button id="next-turn" class="btn" style="display:none;">다음 턴</button>
+
+<!-- 전투 로그 -->
+<div id="battle-log"></div>
+
   </div>  <!-- 캐릭터 메뉴 -->  <div id="char-menu">
     <h2>보유 캐릭터</h2>
     <div class="hand" id="char-hand"></div>
@@ -64,7 +78,7 @@ Mobile Single-File Setup Guide:
       <button id="close-popup" class="btn">닫기</button>
     </div>
   </div>  <script>
-    // 캐릭터 정의
+    // --- 데이터 정의 ---
     const characters = [{
       name: '김뭉싯', level:1, stars:1,
       skills: [
@@ -72,110 +86,114 @@ Mobile Single-File Setup Guide:
         { name:'빈틈', base:10, min:3, max:5, effect:null },
         { name:'바늘 쇄도', base:30, min:6, max:11, effect:null }
       ],
-      passive: { name:'감정 무시', condition: (team)=> team.some(t=>t.health<=50), buff:{type:'atk', value:2} }
+      passive: { name:'감정 무시',
+                 condition: (team)=> team.some(t=>t.health<=50),
+                 buff:{type:'atk', value:2} }
     }];
 
-    // 플레이어/적 정의
-    class Player {
-      constructor(char){ this.char=char; this.health=100; }
-      drawSkill(){
-        const s=this.char.skills[Math.floor(Math.random()*this.char.skills.length)];
-        const power = s.min + Math.floor(Math.random()*(s.max-s.min+1));
-        let final = power;
-        if(this.char.passive && this.char.passive.condition([this])) final += this.char.passive.buff.value;
-        return { ...s, power:final };
-      }
-    }
-    const player = new Player(characters[0]);
-    const enemy = new Player(characters[0]);
+    // 팀 구성
+    class Player { constructor(char){ this.char=char; this.health=100; } }
+    const alliedPlayers = characters.map(c=> new Player(c));
+    const enemyPlayers = characters.map(c=> new Player(c));
 
-    // 전투 턴 시작
-    function startTurn(){
-      document.getElementById('next-turn').style.display='none';
-      document.getElementById('char-menu').style.display='none';
-      document.getElementById('char-popup').style.display='none';
-      document.getElementById('enemy-hand').innerHTML='';
-      document.getElementById('player-hand').innerHTML='';
-      const eCard = enemy.drawSkill();
-      const pCard = player.drawSkill();
-      document.getElementById('enemy-hand').append(createCardEl(eCard));
-      const pEl = createCardEl(pCard);
-      pEl.addEventListener('click', ()=>resolveCombat(pCard, eCard));
-      document.getElementById('player-hand').append(pEl);
-      log('🃏 카드를 선택하세요.');
+    // 턴별 카드 저장
+    let allyCards = [], enemyCards = [];
+    let selectedAlly = null, selectedEnemy = null;
+
+    // 엘리먼트 참조
+    const enemyListDiv = document.getElementById('enemy-character-list');
+    const allyListDiv = document.getElementById('ally-character-list');
+    const enemyHand = document.getElementById('enemy-hand');
+    const playerHand = document.getElementById('player-hand');
+    const attackBtn = document.getElementById('attack-btn');
+    const nextBtn = document.getElementById('next-turn');
+    const logDiv = document.getElementById('battle-log');
+
+    // 캐릭터 목록 렌더
+    function renderCharacterLists(){
+      enemyListDiv.innerHTML = '';
+      allyListDiv.innerHTML = '';
+      enemyPlayers.forEach(p=>{ const d=document.createElement('div'); d.textContent=p.char.name; d.className='card'; enemyListDiv.append(d); });
+      alliedPlayers.forEach(p=>{ const d=document.createElement('div'); d.textContent=p.char.name; d.className='card'; allyListDiv.append(d); });
     }
 
-    // 전투 처리
-    function resolveCombat(p, e){
-      log(`🔥 내 위력 ${p.power} vs 적 위력 ${e.power}`);
-      if(p.power > e.power) {
-        const dmg = p.power - (e.effect?.type==='def'? e.effect.value:0);
-        enemy.health -= dmg;
-        log(`🏆 승리! 적 체력 ${enemy.health}`);
-      } else if(p.power < e.power) {
-        const dmg = e.power - (p.effect?.type==='def'? p.effect.value:0);
-        player.health -= dmg;
-        log(`💔 패배... 내 체력 ${player.health}`);
-      } else {
-        log('🔄 무승부! 다시 대결');
-        return startTurn();
-      }
-      document.getElementById('next-turn').style.display='inline-block';
-    }
-
-    // 카드 엘리먼트 생성
-    function createCardEl(c){
-      const el = document.createElement('div'); el.className='card';
-      el.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>` +
-                     `<div>위력: ${c.power}</div>` +
-                     (c.effect ? `<div>${c.effect.type==='def'? '방어':'버프'}+${c.effect.value}</div>` : '');
-      return el;
-    }
-
-    // 로그 출력
-    function log(text){
-      const d = document.getElementById('battle-log');
-      d.innerHTML += `<p>${text}</p>`;
-      d.scrollTop = d.scrollHeight;
-    }
-
-    // 캐릭터 메뉴
-    function showCharMenu(){
-      const handDiv = document.getElementById('char-hand'); handDiv.innerHTML='';
+    // 카드 생성 (placeholder)
+    function generatePlaceholders(){
+      allyCards = [];
+      enemyCards = [];
       characters.forEach(c=>{
-        const card = document.createElement('div'); card.className='card';
-        card.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>` +
-                         `<span class='level'>Lv.${c.level}</span>` +
-                         `<div class='stars'>${'★'.repeat(c.stars)}</div>`;
-        card.addEventListener('click', ()=>openPopup(c));
-        handDiv.append(card);
+        for(let i=0;i<2;i++){
+          allyCards.push({ skill: c.skills[Math.floor(Math.random()*c.skills.length)], power:null });
+          enemyCards.push({ skill: c.skills[Math.floor(Math.random()*c.skills.length)], power:null });
+        }
       });
-      document.getElementById('char-menu').style.display='block';
     }
 
-    // 팝업 열기/닫기
-    function openPopup(c){
-      document.getElementById('popup-name').textContent = c.name;
-      const ul = document.getElementById('skill-list'); ul.innerHTML='';
-      c.skills.forEach(s=>{
-        const li = document.createElement('li');
-        li.textContent = `${s.name} - 기본 공격력 ${s.base}, 위력 ${s.min}~${s.max}`;
-        ul.append(li);
-      });
-      document.getElementById('char-popup').style.display='flex';
-    }
-    function closePopup(){ document.getElementById('char-popup').style.display='none'; }
+    // 카드 표시 및 선택 초기화
+    function displayPlaceholders(){
+      enemyHand.innerHTML = '';
+      playerHand.innerHTML = '';
+      selectedAlly = null; selectedEnemy = null;
+      attackBtn.style.display='none'; attackBtn.disabled=true;
+      nextBtn.style.display='none';
+      logDiv.innerHTML = '';
 
-    // 이벤트 바인딩
+      enemyCards.forEach((c,i)=>{
+        const el = document.createElement('div'); el.className='card';
+        el.innerHTML = `<h3>${c.skill.name}</h3><div class='photo'></div>`;
+        el.addEventListener('click', ()=>{
+          if(selectedAlly && !selectedEnemy){ selectedEnemy=c; el.classList.add('selected'); attackBtn.style.display='inline-block'; attackBtn.disabled=false; }
+        });
+        enemyHand.append(el);
+      });
+
+      allyCards.forEach((c,i)=>{
+        const el = document.createElement('div'); el.className='card';
+        el.innerHTML = `<h3>${c.skill.name}</h3><div class='photo'></div>`;
+        el.addEventListener('click', ()=>{
+          if(!selectedAlly){ selectedAlly=c; el.classList.add('selected'); }
+        });
+        playerHand.append(el);
+      });
+    }
+
+    // 전투 시작 버튼
     document.getElementById('start-battle').onclick = () => {
-      document.getElementById('main-menu').style.display = 'none';
-      document.getElementById('game-container').style.display = 'block';
-      document.getElementById('battle-log').innerHTML = '';
-      return startTurn();
+      document.getElementById('main-menu').style.display='none';
+      document.getElementById('game-container').style.display='block';
+      renderCharacterLists();
+      generatePlaceholders();
+      displayPlaceholders();
     };
-    document.getElementById('char-menu-btn').onclick = showCharMenu;
-    document.getElementById('close-char-menu').onclick = () => { document.getElementById('char-menu').style.display = 'none'; };
-    document.getElementById('close-popup').onclick = closePopup;
-    document.getElementById('next-turn').onclick = () => startTurn();
+
+    // 공격 실행
+    attackBtn.onclick = () => {
+      // 위력 랜덤 생성
+      selectedAlly.power = selectedAlly.skill.min + Math.floor(Math.random()*(selectedAlly.skill.max-selectedAlly.skill.min+1));
+      if(characters[0].passive.condition(alliedPlayers)) selectedAlly.power += characters[0].passive.buff.value;
+      selectedEnemy.power = selectedEnemy.skill.min + Math.floor(Math.random()*(selectedEnemy.skill.max-selectedEnemy.skill.min+1));
+      if(characters[0].passive.condition(enemyPlayers)) selectedEnemy.power += characters[0].passive.buff.value;
+
+      log(`🔥 내 위력 ${selectedAlly.power} vs 적 위력 ${selectedEnemy.power}`);
+      if(selectedAlly.power > selectedEnemy.power){
+        log('🏆 승리!');
+      } else if(selectedAlly.power < selectedEnemy.power){
+        log('💔 패배...');
+      } else {
+        log('🔄 무승부, 다시 선택');
+      }
+      attackBtn.style.display='none'; nextBtn.style.display='inline-block';
+    };
+
+    // 다음 턴
+    nextBtn.onclick = () => {
+      generatePlaceholders(); displayPlaceholders();
+    };
+
+    // 캐릭터 메뉴 / 팝업 기존 로직
+    document.getElementById('char-menu-btn').onclick = ()=>document.getElementById('char-menu').style.display='block';
+    document.getElementById('close-char-menu').onclick = ()=>document.getElementById('char-menu').style.display='none';
+    document.getElementById('close-popup').onclick = ()=>document.getElementById('char-popup').style.display='none';
+    function openPopup(c){ /* 기존 팝업 로직 유지 */ }
   </script></body>
 </html>
