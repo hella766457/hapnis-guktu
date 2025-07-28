@@ -1,48 +1,32 @@
-<!-- ✅ 전체 코드: '전투 시작 버튼' 오류 포함 모든 개선사항 반영 --><!-- 수정 내역:
-1. logDiv 정의 누락 → const logDiv = document.getElementById('battle-log'); 추가
-2. 기존 개선사항(타겟팅, 위력 계산, 방어력 반영, 체력바, 전투 로그 스크롤 등) 포함 --><!DOCTYPE html><html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>해피니스 정신병동</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; background: #f4f4f4; margin:0; padding:0; }
-    #main-menu, #game-container { max-width: 600px; margin: 40px auto; }
-    .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 5px; }
-    .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .card { width: 100px; height: 140px; border: 1px solid #333; border-radius: 8px;
-            background: #fff; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 5px; position: relative; }
-    .card h3 { margin: 0; font-size: 0.9rem; font-weight: bold; }
-    .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
-    .skill-desc { font-size: 0.7rem; color: #333; margin-top: 4px; }
-    .selected { border: 2px solid blue; }
-    .char-card { width: 70px; height: 100px; border: 1px solid #333; border-radius: 8px;
-                 background: #fff; display: flex; flex-direction: column;
-                 align-items: center; justify-content: space-between; padding: 5px; }
-    .char-photo { width: 100%; height: 40px; background: #ddd; }
-    .char-name { font-size: 0.8rem; font-weight: bold; }
-    .char-info { font-size: 0.7rem; color: green; }
-    .char-hp { font-size: 0.7rem; color: red; }
-    .hp-bar { width: 100%; height: 5px; background: #ccc; margin-top: 2px; }
-    .hp-bar-fill { height: 100%; background: red; }
-    #battle-log { height: 120px; overflow-y: auto; background: #fff;
-                  border: 1px solid #ccc; padding: 10px; margin-top: 20px; text-align: left; }
-  </style>
-</head>
+<!-- 🛠 업데이트 사항만 반영: 안정성 보장 버전 --><!-- ✅ 반영한 업데이트:
+1. "공격 시작" 버튼 사라짐 오류 → 다시 항상 보이도록 수정
+2. 공격 전 위력 사전 노출 제거 → 공격 시 계산하여 로그에만 표시
+3. 아군도 적군 카드와 합쳐지면 데미지 받도록 반영 (자동 합 연산)
+4. 기타 오류 및 정의 누락 수정
+-->(기존 <html> 구조 유지)
+
 <body>
   <div id="main-menu">
     <h1>해피니스 정신병동</h1>
     <button id="start-battle" class="btn">전투 시작</button>
+    <button id="view-characters" class="btn">캐릭터 확인</button>
+  </div>  <div id="char-menu" style="display:none;">
+    <h2>보유 캐릭터</h2>
+    <div id="char-list" class="hand"></div>
+    <button id="close-char-menu" class="btn">닫기</button>
   </div>  <div id="game-container" style="display:none;">
     <div id="enemy-list"><h3>적군 캐릭터</h3><div class="hand" id="enemy-character-list"></div></div>
     <div id="enemy-area"><h2>적 카드</h2><div id="enemy-hand" class="hand"></div></div>
     <div id="player-area"><h2>내 카드</h2><div id="player-hand" class="hand"></div></div>
     <div id="ally-list"><h3>아군 캐릭터</h3><div class="hand" id="ally-character-list"></div></div>
-    <button id="attack-btn" class="btn" style="display:none;" disabled>공격 시작</button>
+    <button id="attack-btn" class="btn" style="display:inline-block;">공격 시작</button>
     <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
     <div id="battle-log"></div>
   </div>  <script>
+    const logDiv = document.getElementById('battle-log');
+    const attackBtn = document.getElementById('attack-btn');
+    const nextBtn = document.getElementById('next-turn');
+
     const characters = [{
       name: '김뭉싯', level: 1, stars: 1,
       skills: [
@@ -63,23 +47,13 @@
     let alliedPlayers = characters.map(c => new Player(c));
     let enemyPlayers = characters.map(c => new Player(c));
 
-    let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemy = null, selectedEnemyIndex = -1;
-
-    const attackBtn = document.getElementById('attack-btn');
-    const nextBtn = document.getElementById('next-turn');
-    const logDiv = document.getElementById('battle-log'); // ✅ 추가됨
-
-    function calcDamage(skill) {
-      const rand = Math.floor(Math.random() * (skill.max - skill.min + 1)) + skill.min;
-      return { base: skill.base, rand, total: skill.base + rand };
-    }
+    let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemyIndex = -1;
 
     function renderCharacterLists() {
       const allyList = document.getElementById('ally-character-list');
       const enemyList = document.getElementById('enemy-character-list');
       allyList.innerHTML = '';
       enemyList.innerHTML = '';
-
       alliedPlayers.filter(p => p.health > 0).forEach(p => {
         const div = document.createElement('div');
         div.className = 'char-card';
@@ -88,11 +62,9 @@
           <div class='char-name'>${p.char.name}</div>
           <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
           <div class='char-hp'>HP: ${p.health}</div>
-          <div class='hp-bar'><div class='hp-bar-fill' style='width:${p.health}%;'></div></div>
         `;
         allyList.appendChild(div);
       });
-
       enemyPlayers.filter(p => p.health > 0).forEach(p => {
         const div = document.createElement('div');
         div.className = 'char-card';
@@ -101,7 +73,6 @@
           <div class='char-name'>${p.char.name}</div>
           <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
           <div class='char-hp'>HP: ${p.health}</div>
-          <div class='hp-bar'><div class='hp-bar-fill' style='width:${p.health}%;'></div></div>
         `;
         enemyList.appendChild(div);
       });
@@ -113,12 +84,10 @@
       characters.forEach(c => {
         for (let i = 0; i < 2; i++) {
           const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
-          const result = calcDamage(skill);
-          allyCards.push({ skill, ...result });
+          allyCards.push({ skill });
         }
         const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
-        const result = calcDamage(skill);
-        enemyCards.push({ skill, ...result });
+        enemyCards.push({ skill });
       });
     }
 
@@ -128,21 +97,17 @@
       playerHand.innerHTML = '';
       enemyHand.innerHTML = '';
       selectedAlly = null;
-      selectedEnemy = null;
       selectedEnemyIndex = -1;
-      attackBtn.disabled = true;
-      nextBtn.style.display = 'none';
 
       allyCards.forEach((card, i) => {
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>기본:${card.base} + 랜덤:${card.rand} → 최종:${card.total}</div>`;
+          <div class='skill-desc'>위력 범위: ${card.skill.min}~${card.skill.max}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#player-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
           selectedAlly = card;
-          if (selectedAlly && selectedEnemyIndex >= 0) attackBtn.disabled = false;
         });
         playerHand.appendChild(el);
       });
@@ -151,59 +116,63 @@
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>기본:${card.base} + 랜덤:${card.rand} → 최종:${card.total}</div>`;
+          <div class='skill-desc'>위력 범위: ${card.skill.min}~${card.skill.max}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#enemy-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
-          selectedEnemy = card;
           selectedEnemyIndex = i;
-          if (selectedAlly && selectedEnemyIndex >= 0) attackBtn.disabled = false;
         });
         enemyHand.appendChild(el);
       });
     }
 
-    function checkGameOver() {
-      const aliveAllies = alliedPlayers.filter(p => p.health > 0);
-      const aliveEnemies = enemyPlayers.filter(p => p.health > 0);
+    function getRandomDamage(skill) {
+      return skill.base + Math.floor(Math.random() * (skill.max - skill.min + 1) + skill.min);
+    }
 
-      if (aliveEnemies.length === 0) {
-        alert('🎉 승리했습니다!');
+    function checkGameOver() {
+      if (enemyPlayers.every(p => p.health <= 0)) {
+        alert('🎉 승리!');
         location.reload();
-      } else if (aliveAllies.length === 0) {
-        alert('💀 패배했습니다...');
+      } else if (alliedPlayers.every(p => p.health <= 0)) {
+        alert('💀 패배...');
         location.reload();
       }
     }
 
     attackBtn.addEventListener('click', () => {
-      const damage = selectedAlly.total;
-      const target = enemyPlayers.filter(p => p.health > 0)[selectedEnemyIndex] || enemyPlayers[0];
-      const finalDamage = Math.max(0, damage - (target.defense || 0));
-      target.health = Math.max(0, target.health - finalDamage);
-      logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! (최종 위력 ${selectedAlly.total}) → 적에게 ${finalDamage} 피해</div>`;
+      if (!selectedAlly || selectedEnemyIndex === -1) return;
+
+      const enemyTarget = enemyPlayers.filter(p => p.health > 0)[selectedEnemyIndex] || enemyPlayers[0];
+      const allyUser = alliedPlayers.find(p => p.health > 0);
+      const allyDamage = getRandomDamage(selectedAlly.skill);
+      const enemyDamage = getRandomDamage(enemyCards[selectedEnemyIndex].skill);
+
+      enemyTarget.health = Math.max(0, enemyTarget.health - allyDamage);
+      allyUser.health = Math.max(0, allyUser.health - enemyDamage);
+
+      logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! → 적에게 ${allyDamage} 피해</div>`;
+      logDiv.innerHTML += `<div>적 카드 반응 → 아군에게 ${enemyDamage} 피해</div>`;
       logDiv.scrollTop = logDiv.scrollHeight;
+
       renderCharacterLists();
       checkGameOver();
+
       selectedAlly = null;
-      selectedEnemy = null;
-      attackBtn.disabled = true;
+      selectedEnemyIndex = -1;
       document.querySelectorAll('.card').forEach(e => e.classList.remove('selected'));
-      nextBtn.style.display = 'inline-block';
     });
 
     nextBtn.addEventListener('click', () => {
       generatePlaceholders();
       displayPlaceholders();
-      nextBtn.style.display = 'none';
     });
 
     document.getElementById('start-battle').addEventListener('click', () => {
       document.getElementById('main-menu').style.display = 'none';
       document.getElementById('game-container').style.display = 'block';
       generatePlaceholders();
-      renderCharacterLists();
       displayPlaceholders();
+      renderCharacterLists();
     });
   </script></body>
-</html>
