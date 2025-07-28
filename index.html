@@ -16,7 +16,7 @@ Mobile Single-File Setup Guide:
   <style>
     body { font-family: sans-serif; text-align: center; background: #f4f4f4; margin:0; padding:0; }
     #main-menu, #game-container, #char-menu { max-width: 600px; margin: 40px auto; }
-    .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 0 10px; }
+    .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 5px; }
     .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .card { width: 100px; height: 140px; border: 1px solid #333; border-radius: 8px;
             background: #fff; display: flex; flex-direction: column;
@@ -31,6 +31,7 @@ Mobile Single-File Setup Guide:
     #char-popup { position: fixed; top:0; left:0; width:100%; height:100%;
                  background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
     #char-popup .popup-content { background: #fff; padding: 20px; border-radius: 8px; max-width: 90%; text-align: left; }
+    #char-popup ul { padding-left: 20px; margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -49,7 +50,7 @@ Mobile Single-File Setup Guide:
       <div id="player-hand" class="hand"></div>
     </div>
     <div id="battle-log"></div>
-    <button id="next-turn" class="btn">다음 턴</button>
+    <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
   </div>  <!-- 캐릭터 메뉴 -->  <div id="char-menu">
     <h2>보유 캐릭터</h2>
     <div class="hand" id="char-hand"></div>
@@ -64,7 +65,7 @@ Mobile Single-File Setup Guide:
     </div>
   </div>  <script>
     // 캐릭터 정의
-    const characters = [ {
+    const characters = [{
       name: '김뭉싯', level:1, stars:1,
       skills: [
         { name:'방어적인 태도', base:9, min:1, max:4, effect:{type:'def', value:1} },
@@ -72,70 +73,93 @@ Mobile Single-File Setup Guide:
         { name:'바늘 쇄도', base:30, min:6, max:11, effect:null }
       ],
       passive: { name:'감정 무시', condition: (team)=> team.some(t=>t.health<=50), buff:{type:'atk', value:2} }
-    } ];
+    }];
 
     // 플레이어/적 정의
     class Player {
       constructor(char){ this.char=char; this.health=100; }
-      drawSkill(){ const s=this.char.skills[Math.floor(Math.random()*this.char.skills.length)];
+      drawSkill(){
+        const s=this.char.skills[Math.floor(Math.random()*this.char.skills.length)];
         const power = s.min + Math.floor(Math.random()*(s.max-s.min+1));
         let final = power;
-        // 패시브 적용
         if(this.char.passive && this.char.passive.condition([this])) final += this.char.passive.buff.value;
         return { ...s, power:final };
       }
     }
     const player = new Player(characters[0]);
-    const enemy = new Player(characters[0]); // 임시: 동일 캐릭터 사용
+    const enemy = new Player(characters[0]);
 
+    // 전투 턴 시작
     function startTurn(){
-      document.getElementById('enemy-hand').innerHTML = '';
-      document.getElementById('player-hand').innerHTML = '';
-      const eCard = enemy.drawSkill(), pCard = player.drawSkill();
-      // 적 카드 공개
-      const eEl = createCardEl(eCard); document.getElementById('enemy-hand').append(eEl);
-      // 내 카드 표시 (클릭 시 전투 실행)
+      document.getElementById('next-turn').style.display='none';
+      document.getElementById('char-menu').style.display='none';
+      document.getElementById('char-popup').style.display='none';
+      document.getElementById('enemy-hand').innerHTML='';
+      document.getElementById('player-hand').innerHTML='';
+      const eCard = enemy.drawSkill();
+      const pCard = player.drawSkill();
+      document.getElementById('enemy-hand').append(createCardEl(eCard));
       const pEl = createCardEl(pCard);
       pEl.addEventListener('click', ()=>resolveCombat(pCard, eCard));
       document.getElementById('player-hand').append(pEl);
-      log('🃏 카드를 확인하고 선택하세요.');
+      log('🃏 카드를 선택하세요.');
     }
 
+    // 전투 처리
     function resolveCombat(p, e){
-      log(`🔥 ${player.char.name} 힘 ${p.power} vs 적 힘 ${e.power}`);
-      if(p.power>e.power){ enemy.health -= p.power - (e.effect?.type==='def'? e.effect.value:0); log('🏆 승리! 적 체력: '+enemy.health); }
-      else if(p.power<e.power){ player.health -= e.power - (p.effect?.type==='def'? p.effect.value:0); log('💔 패배... 내 체력: '+player.health); }
-      else{ log('🔄 무승부, 재대결!'); startTurn(); return; }
+      log(`🔥 내 위력 ${p.power} vs 적 위력 ${e.power}`);
+      if(p.power > e.power) {
+        const dmg = p.power - (e.effect?.type==='def'? e.effect.value:0);
+        enemy.health -= dmg;
+        log(`🏆 승리! 적 체력 ${enemy.health}`);
+      } else if(p.power < e.power) {
+        const dmg = e.power - (p.effect?.type==='def'? p.effect.value:0);
+        player.health -= dmg;
+        log(`💔 패배... 내 체력 ${player.health}`);
+      } else {
+        log('🔄 무승부! 다시 대결');
+        return startTurn();
+      }
       document.getElementById('next-turn').style.display='inline-block';
     }
 
+    // 카드 엘리먼트 생성
     function createCardEl(c){
-      const el=document.createElement('div'); el.className='card';
-      el.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>`+
-                     `<div>위력: ${c.power}</div>`+
-                     (c.effect? `<div>${c.effect.type==='def'?'방어':'버프'}+${c.effect.value}</div>`:'');
+      const el = document.createElement('div'); el.className='card';
+      el.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>` +
+                     `<div>위력: ${c.power}</div>` +
+                     (c.effect ? `<div>${c.effect.type==='def'? '방어':'버프'}+${c.effect.value}</div>` : '');
       return el;
     }
 
-    function log(t){ const d=document.getElementById('battle-log'); d.innerHTML+=`<p>${t}</p>`; d.scrollTop=d.scrollHeight; }
+    // 로그 출력
+    function log(text){
+      const d = document.getElementById('battle-log');
+      d.innerHTML += `<p>${text}</p>`;
+      d.scrollTop = d.scrollHeight;
+    }
 
     // 캐릭터 메뉴
     function showCharMenu(){
-      const h=document.getElementById('char-hand'); h.innerHTML='';
+      const handDiv = document.getElementById('char-hand'); handDiv.innerHTML='';
       characters.forEach(c=>{
-        const card=document.createElement('div'); card.className='card';
-        card.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>`+
-                         `<span class='level'>Lv.${c.level}</span>`+
+        const card = document.createElement('div'); card.className='card';
+        card.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>` +
+                         `<span class='level'>Lv.${c.level}</span>` +
                          `<div class='stars'>${'★'.repeat(c.stars)}</div>`;
-        card.addEventListener('click', ()=>openPopup(c)); h.append(card);
-      }); document.getElementById('char-menu').style.display='block';
+        card.addEventListener('click', ()=>openPopup(c));
+        handDiv.append(card);
+      });
+      document.getElementById('char-menu').style.display='block';
     }
+
+    // 팝업 열기/닫기
     function openPopup(c){
       document.getElementById('popup-name').textContent = c.name;
       const ul = document.getElementById('skill-list'); ul.innerHTML='';
       c.skills.forEach(s=>{
         const li = document.createElement('li');
-        li.textContent = `${s.name} - 기본${s.base}, 위력${s.min}~${s.max}`;
+        li.textContent = `${s.name} - 기본 공격력 ${s.base}, 위력 ${s.min}~${s.max}`;
         ul.append(li);
       });
       document.getElementById('char-popup').style.display='flex';
@@ -143,10 +167,15 @@ Mobile Single-File Setup Guide:
     function closePopup(){ document.getElementById('char-popup').style.display='none'; }
 
     // 이벤트 바인딩
-    document.getElementById('start-battle').onclick=()=>{ document.getElementById('main-menu').style.display='none'; document.getElementById('game-container').style.display='block'; startTurn(); };
-    document.getElementById('char-menu-btn').onclick=showCharMenu;
-    document.getElementById('close-char-menu').onclick=()=>{ document.getElementById('char-menu').style.display='none'; };
-    document.getElementById('close-popup').onclick=closePopup;
-    document.getElementById('next-turn').onclick=()=>{ document.getElementById('next-turn').style.display='none'; startTurn(); };
+    document.getElementById('start-battle').onclick = () => {
+      document.getElementById('main-menu').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+      document.getElementById('battle-log').innerHTML = '';
+      return startTurn();
+    };
+    document.getElementById('char-menu-btn').onclick = showCharMenu;
+    document.getElementById('close-char-menu').onclick = () => { document.getElementById('char-menu').style.display = 'none'; };
+    document.getElementById('close-popup').onclick = closePopup;
+    document.getElementById('next-turn').onclick = () => startTurn();
   </script></body>
 </html>
