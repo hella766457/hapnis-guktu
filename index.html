@@ -97,8 +97,8 @@ Mobile Single-File Setup Guide:
         allyListDiv.append(el);
       });
     }
-    function generatePlaceholders(){ allyCards=[]; enemyCards=[];
-      characters.forEach(c=>{ for(let i=0;i<2;i++){ allyCards.push({ skill:c.skills[Math.floor(Math.random()*c.skills.length)], power:null }); enemyCards.push({ skill:c.skills[Math.floor(Math.random()*c.skills.length)], power:null }); }});
+    function generatePlaceholders(){ allyCards=[]; enemyCards=[]; characters.forEach(c=>{ for(let i=0;i<2;i++){ allyCards.push({ skill:c.skills[Math.floor(Math.random()*c.skills.length)], power:null }); } // 적군 카드는 캐릭터당 1장만
+        enemyCards.push({ skill:c.skills[Math.floor(Math.random()*c.skills.length)], power:null }); }); }); enemyCards.push({ skill:c.skills[Math.floor(Math.random()*c.skills.length)], power:null }); }});
     }
     function displayPlaceholders(){
       selectedAlly=null; selectedEnemy=null;
@@ -118,11 +118,7 @@ Mobile Single-File Setup Guide:
         playerHand.append(el);
       });
     }
-    document.getElementById('start-battle').onclick = ()=>{
-      document.getElementById('main-menu').style.display='none';
-      document.getElementById('game-container').style.display='block';
-      renderCharacterLists(); generatePlaceholders(); displayPlaceholders();
-    };
+    document.getElementById('start-battle').onclick = () => { document.getElementById('char-menu').style.display='none'; document.getElementById('char-popup').style.display='none'; document.getElementById('main-menu').style.display='none'; document.getElementById('game-container').style.display='block'; renderCharacterLists(); generatePlaceholders(); displayPlaceholders(); };
     attackBtn.onclick = ()=>{
       selectedAlly.power = selectedAlly.skill.min + Math.floor(Math.random()*(selectedAlly.skill.max-selectedAlly.skill.min+1));
       if(characters[0].passive.condition(alliedPlayers)) selectedAlly.power += characters[0].passive.buff.value;
