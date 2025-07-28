@@ -1,11 +1,12 @@
-<!DOCTYPE html><html lang="ko">
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>해피니스 정신병동</title>
   <style>
     body { font-family: sans-serif; text-align: center; background: #f4f4f4; margin:0; padding:0; }
-    #main-menu, #game-container, #char-menu { max-width: 600px; margin: 40px auto; }
+    #main-menu, #game-container { max-width: 600px; margin: 40px auto; }
     .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 5px; }
     .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .card { width: 100px; height: 140px; border: 1px solid #333; border-radius: 8px;
@@ -15,27 +16,23 @@
     .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
     .skill-desc { font-size: 0.7rem; color: #333; margin-top: 4px; }
     .selected { border: 2px solid blue; }
-    .char-card { width: 70px; height: 90px; border: 1px solid #333; border-radius: 8px;
-               background: #fff; display: flex; flex-direction: column;
-               align-items: center; justify-content: space-between; padding: 5px; }
+    .char-card { width: 70px; height: 100px; border: 1px solid #333; border-radius: 8px;
+                 background: #fff; display: flex; flex-direction: column;
+                 align-items: center; justify-content: space-between; padding: 5px; }
     .char-photo { width: 100%; height: 40px; background: #ddd; }
     .char-name { font-size: 0.8rem; font-weight: bold; }
     .char-info { font-size: 0.7rem; color: green; }
+    .char-hp { font-size: 0.7rem; color: red; }
     #battle-log { height: 120px; overflow-y: auto; background: #fff;
                   border: 1px solid #ccc; padding: 10px; margin-top: 20px; text-align: left; }
-    #char-popup { display: none; position: fixed; top:0; left:0; width:100%; height:100%;
-                 background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
-    #char-popup .popup-content { background: #fff; padding: 20px; border-radius: 8px;
-                                 max-width: 90%; text-align: left; }
-    #char-popup ul { padding-left: 20px; margin: 10px 0; }
   </style>
 </head>
 <body>
   <div id="main-menu">
     <h1>해피니스 정신병동</h1>
     <button id="start-battle" class="btn">전투 시작</button>
-    <button id="char-menu-btn" class="btn">캐릭터 확인</button>
   </div>
+
   <div id="game-container" style="display:none;">
     <div id="enemy-list"><h3>적군 캐릭터</h3><div class="hand" id="enemy-character-list"></div></div>
     <div id="enemy-area"><h2>적 카드</h2><div id="enemy-hand" class="hand"></div></div>
@@ -45,16 +42,7 @@
     <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
     <div id="battle-log"></div>
   </div>
-  <div id="char-menu" style="display:none;"><h2>보유 캐릭터</h2><div class="hand" id="char-hand"></div><button id="close-char-menu" class="btn">닫기</button></div>
-  <div id="char-popup" style="display:none;">
-    <div class="popup-content">
-      <h3 id="popup-name"></h3>
-      <p><strong>스킬 목록:</strong></p>
-      <ul id="skill-list"></ul>
-      <p><strong>패시브 스킬:</strong> 감정 무시 (아군 정신력 50 이하 시 위력 +2)</p>
-      <button id="close-popup" class="btn">닫기</button>
-    </div>
-  </div>
+
   <script>
     const characters = [{
       name: '김뭉싯', level: 1, stars: 1,
@@ -62,97 +50,149 @@
         { name: '방어적인 태도', base: 9, min: 1, max: 4, effect: { type: 'def', value: 1 } },
         { name: '빈틈', base: 10, min: 3, max: 5, effect: null },
         { name: '바늘 쇄도', base: 30, min: 6, max: 11, effect: null }
-      ],
-      passive: { name: '감정 무시', condition: team => team.some(t => t.health <= 50), buff: { type: 'atk', value: 2 } }
+      ]
     }];
-    class Player { constructor(char) { this.char = char; this.health = 100; } }
-    const alliedPlayers = characters.map(c => new Player(c));
-    const enemyPlayers = characters.map(c => new Player(c));
+
+    class Player {
+      constructor(char) {
+        this.char = char;
+        this.health = 100;
+      }
+    }
+
+    let alliedPlayers = characters.map(c => new Player(c));
+    let enemyPlayers = characters.map(c => new Player(c));
+
     let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemy = null;
-    const enemyListDiv = document.getElementById('enemy-character-list');
-    const allyListDiv = document.getElementById('ally-character-list');
-    const charHandDiv = document.getElementById('char-hand');
-    const enemyHand = document.getElementById('enemy-hand');
+
     const playerHand = document.getElementById('player-hand');
+    const enemyHand = document.getElementById('enemy-hand');
+    const logDiv = document.getElementById('battle-log');
     const attackBtn = document.getElementById('attack-btn');
     const nextBtn = document.getElementById('next-turn');
-    const logDiv = document.getElementById('battle-log');function renderCharacterLists() {
-  enemyListDiv.innerHTML = '';
-  allyListDiv.innerHTML = '';
-  enemyPlayers.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'char-card';
-    el.innerHTML = `
-      <div class='char-photo'></div>
-      <div class='char-name'>${p.char.name}</div>
-      <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
-    `;
-    el.addEventListener('click', () => openPopup(p.char));
-    enemyListDiv.append(el);
-  });
-  alliedPlayers.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'char-card';
-    el.innerHTML = `
-      <div class='char-photo'></div>
-      <div class='char-name'>${p.char.name}</div>
-      <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
-    `;
-    el.addEventListener('click', () => openPopup(p.char));
-    allyListDiv.append(el);
-  });
-}
 
-function renderCharMenu() {
-  charHandDiv.innerHTML = '';
-  characters.forEach(c => {
-    const el = document.createElement('div');
-    el.className = 'char-card';
-    el.innerHTML = `
-      <div class='char-photo'></div>
-      <div class='char-name'>${c.name}</div>
-      <div class='char-info'>Lv.${c.level} ${'★'.repeat(c.stars)}</div>
-    `;
-    el.addEventListener('click', () => openPopup(c));
-    charHandDiv.append(el);
-  });
-}
+    function renderCharacterLists() {
+      const allyList = document.getElementById('ally-character-list');
+      const enemyList = document.getElementById('enemy-character-list');
+      allyList.innerHTML = '';
+      enemyList.innerHTML = '';
 
-function generatePlaceholders() {
-  allyCards = [];
-  enemyCards = [];
-  characters.forEach(c => {
-    for (let i = 0; i < 2; i++) {
-      allyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
+      alliedPlayers.filter(p => p.health > 0).forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'char-card';
+        div.innerHTML = `
+          <div class='char-photo'></div>
+          <div class='char-name'>${p.char.name}</div>
+          <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
+          <div class='char-hp'>HP: ${p.health}</div>
+        `;
+        allyList.appendChild(div);
+      });
+
+      enemyPlayers.filter(p => p.health > 0).forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'char-card';
+        div.innerHTML = `
+          <div class='char-photo'></div>
+          <div class='char-name'>${p.char.name}</div>
+          <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
+          <div class='char-hp'>HP: ${p.health}</div>
+        `;
+        enemyList.appendChild(div);
+      });
     }
-    enemyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
-  });
-}
 
-function displayPlaceholders() {
-  selectedAlly = null;
-  selectedEnemy = null;
-  attackBtn.style.display = 'none'; attackBtn.disabled = true;
-  nextBtn.style.display = 'none';
-  enemyHand.innerHTML = '';
-  playerHand.innerHTML = '';
-  logDiv.innerHTML = '';
+    function generatePlaceholders() {
+      allyCards = [];
+      enemyCards = [];
+      characters.forEach(c => {
+        for (let i = 0; i < 2; i++) {
+          allyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
+        }
+        enemyCards.push({ skill: c.skills[Math.floor(Math.random() * c.skills.length)], power: null });
+      });
+    }
 
-  enemyCards.forEach((c, i) => {
-    const effectText = c.skill.effect
-      ? (c.skill.effect.type === 'def'
-        ? '방어+' + c.skill.effect.value
-        : '버프+' + c.skill.effect.value)
-      : '';
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.innerHTML = `
-      <h3>${c.skill.name}</h3>
-      <div class='photo'></div>
-      <div class='skill-desc'>기본 공격력: ${c.skill.base}, 위력: ${c.skill.min}~${c.skill.max}${effectText ? ', 효과: ' + effectText : ''}</div>
-    `;
-    el.addEventListener('click', () => {
-      if (selectedAlly && !selectedEnemy) {
-        selectedEnemy = c;
-        document.querySelectorAll('#enemy-hand .card')[i].classList.add('selected');
+    function displayPlaceholders() {
+      playerHand.innerHTML = '';
+      enemyHand.innerHTML = '';
+      selectedAlly = null;
+      selectedEnemy = null;
+      attackBtn.disabled = true;
+      attackBtn.style.display = 'inline-block';
+      nextBtn.style.display = 'none';
 
+      allyCards.forEach((card, i) => {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
+          <div class='skill-desc'>${card.skill.base} / ${card.skill.min}-${card.skill.max}</div>`;
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#player-hand .card').forEach(e => e.classList.remove('selected'));
+          el.classList.add('selected');
+          selectedAlly = card;
+          if (selectedAlly && selectedEnemy) attackBtn.disabled = false;
+        });
+        playerHand.appendChild(el);
+      });
+
+      enemyCards.forEach((card, i) => {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
+          <div class='skill-desc'>${card.skill.base} / ${card.skill.min}-${card.skill.max}</div>`;
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#enemy-hand .card').forEach(e => e.classList.remove('selected'));
+          el.classList.add('selected');
+          selectedEnemy = card;
+          if (selectedAlly && selectedEnemy) attackBtn.disabled = false;
+        });
+        enemyHand.appendChild(el);
+      });
+    }
+
+    function checkGameOver() {
+      const aliveAllies = alliedPlayers.filter(p => p.health > 0);
+      const aliveEnemies = enemyPlayers.filter(p => p.health > 0);
+
+      if (aliveEnemies.length === 0) {
+        alert('🎉 승리했습니다!');
+        location.reload();
+      } else if (aliveAllies.length === 0) {
+        alert('💀 패배했습니다...');
+        location.reload();
+      }
+    }
+
+    attackBtn.addEventListener('click', () => {
+      const damage = selectedAlly.skill.base + Math.floor(Math.random() * (selectedAlly.skill.max - selectedAlly.skill.min + 1)) + selectedAlly.skill.min;
+      const target = enemyPlayers.find(p => p.health > 0);
+      if (target) {
+        target.health = Math.max(0, target.health - damage);
+        logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! 적에게 ${damage} 피해</div>`;
+      }
+      renderCharacterLists();
+      checkGameOver();
+      selectedAlly = null;
+      selectedEnemy = null;
+      attackBtn.disabled = true;
+      document.querySelectorAll('.card').forEach(e => e.classList.remove('selected'));
+      nextBtn.style.display = 'inline-block';
+    });
+
+    nextBtn.addEventListener('click', () => {
+      generatePlaceholders();
+      displayPlaceholders();
+      nextBtn.style.display = 'none';
+    });
+
+    document.getElementById('start-battle').addEventListener('click', () => {
+      document.getElementById('main-menu').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+      generatePlaceholders();
+      renderCharacterLists();
+      displayPlaceholders();
+    });
+  </script>
+</body>
+</html>
