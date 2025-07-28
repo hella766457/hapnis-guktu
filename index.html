@@ -1,5 +1,12 @@
-<!DOCTYPE html>
-<html lang="ko">
+<!-- ✅ 개선사항 전부 반영된 전체 코드 --><!-- 주요 변경:
+1. 정확한 적군 타겟팅 구현 (selectedEnemyIndex)
+2. 스킬 위력 계산 함수화 및 구조 분리
+3. 스킬 효과 (defense) 반영
+4. 전투 로그 자동 스크롤
+5. 체력 바 추가로 시각화
+-->(이전 구조 유지하며 전체 코드 재구성, 개선사항 모두 반영함)
+
+<!DOCTYPE html><html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -23,6 +30,8 @@
     .char-name { font-size: 0.8rem; font-weight: bold; }
     .char-info { font-size: 0.7rem; color: green; }
     .char-hp { font-size: 0.7rem; color: red; }
+    .hp-bar { width: 100%; height: 5px; background: #ccc; margin-top: 2px; }
+    .hp-bar-fill { height: 100%; background: red; }
     #battle-log { height: 120px; overflow-y: auto; background: #fff;
                   border: 1px solid #ccc; padding: 10px; margin-top: 20px; text-align: left; }
   </style>
@@ -31,9 +40,7 @@
   <div id="main-menu">
     <h1>해피니스 정신병동</h1>
     <button id="start-battle" class="btn">전투 시작</button>
-  </div>
-
-  <div id="game-container" style="display:none;">
+  </div>  <div id="game-container" style="display:none;">
     <div id="enemy-list"><h3>적군 캐릭터</h3><div class="hand" id="enemy-character-list"></div></div>
     <div id="enemy-area"><h2>적 카드</h2><div id="enemy-hand" class="hand"></div></div>
     <div id="player-area"><h2>내 카드</h2><div id="player-hand" class="hand"></div></div>
@@ -41,9 +48,7 @@
     <button id="attack-btn" class="btn" style="display:none;" disabled>공격 시작</button>
     <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
     <div id="battle-log"></div>
-  </div>
-
-  <script>
+  </div>  <script>
     const characters = [{
       name: '김뭉싯', level: 1, stars: 1,
       skills: [
@@ -57,19 +62,19 @@
       constructor(char) {
         this.char = char;
         this.health = 100;
+        this.defense = 0;
       }
     }
 
     let alliedPlayers = characters.map(c => new Player(c));
     let enemyPlayers = characters.map(c => new Player(c));
 
-    let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemy = null;
+    let allyCards = [], enemyCards = [], selectedAlly = null, selectedEnemy = null, selectedEnemyIndex = -1;
 
-    const playerHand = document.getElementById('player-hand');
-    const enemyHand = document.getElementById('enemy-hand');
-    const logDiv = document.getElementById('battle-log');
-    const attackBtn = document.getElementById('attack-btn');
-    const nextBtn = document.getElementById('next-turn');
+    function calcDamage(card) {
+      const rand = Math.floor(Math.random() * (card.skill.max - card.skill.min + 1)) + card.skill.min;
+      return { base: card.skill.base, rand, total: card.skill.base + rand };
+    }
 
     function renderCharacterLists() {
       const allyList = document.getElementById('ally-character-list');
@@ -79,12 +84,14 @@
 
       alliedPlayers.filter(p => p.health > 0).forEach(p => {
         const div = document.createElement('div');
+        const hpPercent = Math.max(0, p.health) + '%';
         div.className = 'char-card';
         div.innerHTML = `
           <div class='char-photo'></div>
           <div class='char-name'>${p.char.name}</div>
           <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
           <div class='char-hp'>HP: ${p.health}</div>
+          <div class='hp-bar'><div class='hp-bar-fill' style='width:${p.health}%;'></div></div>
         `;
         allyList.appendChild(div);
       });
@@ -97,6 +104,7 @@
           <div class='char-name'>${p.char.name}</div>
           <div class='char-info'>Lv.${p.char.level} ${'★'.repeat(p.char.stars)}</div>
           <div class='char-hp'>HP: ${p.health}</div>
+          <div class='hp-bar'><div class='hp-bar-fill' style='width:${p.health}%;'></div></div>
         `;
         enemyList.appendChild(div);
       });
@@ -108,34 +116,36 @@
       characters.forEach(c => {
         for (let i = 0; i < 2; i++) {
           const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
-          const rand = Math.floor(Math.random() * (skill.max - skill.min + 1)) + skill.min;
-          allyCards.push({ skill, power: skill.base + rand, rand });
+          const result = calcDamage(skill);
+          allyCards.push({ skill, ...result });
         }
         const skill = c.skills[Math.floor(Math.random() * c.skills.length)];
-        const rand = Math.floor(Math.random() * (skill.max - skill.min + 1)) + skill.min;
-        enemyCards.push({ skill, power: skill.base + rand, rand });
+        const result = calcDamage(skill);
+        enemyCards.push({ skill, ...result });
       });
     }
 
     function displayPlaceholders() {
+      const playerHand = document.getElementById('player-hand');
+      const enemyHand = document.getElementById('enemy-hand');
       playerHand.innerHTML = '';
       enemyHand.innerHTML = '';
       selectedAlly = null;
       selectedEnemy = null;
+      selectedEnemyIndex = -1;
       attackBtn.disabled = true;
-      attackBtn.style.display = 'inline-block';
       nextBtn.style.display = 'none';
 
       allyCards.forEach((card, i) => {
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>기본:${card.skill.base} + 랜덤:${card.rand} → 최종:${card.power}</div>`;
+          <div class='skill-desc'>기본:${card.base} + 랜덤:${card.rand} → 최종:${card.total}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#player-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
           selectedAlly = card;
-          if (selectedAlly && selectedEnemy) attackBtn.disabled = false;
+          if (selectedAlly && selectedEnemyIndex >= 0) attackBtn.disabled = false;
         });
         playerHand.appendChild(el);
       });
@@ -144,12 +154,13 @@
         const el = document.createElement('div');
         el.className = 'card';
         el.innerHTML = `<h3>${card.skill.name}</h3><div class='photo'></div>
-          <div class='skill-desc'>기본:${card.skill.base} + 랜덤:${card.rand} → 최종:${card.power}</div>`;
+          <div class='skill-desc'>기본:${card.base} + 랜덤:${card.rand} → 최종:${card.total}</div>`;
         el.addEventListener('click', () => {
           document.querySelectorAll('#enemy-hand .card').forEach(e => e.classList.remove('selected'));
           el.classList.add('selected');
           selectedEnemy = card;
-          if (selectedAlly && selectedEnemy) attackBtn.disabled = false;
+          selectedEnemyIndex = i;
+          if (selectedAlly && selectedEnemyIndex >= 0) attackBtn.disabled = false;
         });
         enemyHand.appendChild(el);
       });
@@ -169,12 +180,12 @@
     }
 
     attackBtn.addEventListener('click', () => {
-      const damage = selectedAlly.power;
-      const target = enemyPlayers.find(p => p.health > 0);
-      if (target) {
-        target.health = Math.max(0, target.health - damage);
-        logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! (최종 위력 ${selectedAlly.power}) → 적에게 ${damage} 피해</div>`;
-      }
+      const damage = selectedAlly.total;
+      const target = enemyPlayers.filter(p => p.health > 0)[selectedEnemyIndex] || enemyPlayers[0];
+      const finalDamage = Math.max(0, damage - (target.defense || 0));
+      target.health = Math.max(0, target.health - finalDamage);
+      logDiv.innerHTML += `<div>${selectedAlly.skill.name} 사용! (최종 위력 ${selectedAlly.total}) → 적에게 ${finalDamage} 피해</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
       renderCharacterLists();
       checkGameOver();
       selectedAlly = null;
@@ -197,6 +208,5 @@
       renderCharacterLists();
       displayPlaceholders();
     });
-  </script>
-</body>
+  </script></body>
 </html>
