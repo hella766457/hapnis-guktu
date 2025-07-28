@@ -4,7 +4,7 @@ Host: GitHub Pages
 
 Mobile Single-File Setup Guide:
 1. GitHub 모바일 웹에서 새 저장소 생성 (예: card-rpg-game)
-2. 'Add file' > 'Create new file' 클릭, 파일 이름에 index.html 입력
+2. 'Add file' > 'Create new file' 클릭 → index.html
 3. 아래 전체 코드 붙여넣기 후 Commit
 4. Settings > Pages에서 main branch, root 설정 후 Save
 5. 배포된 URL 열어 모바일에서 플레이
@@ -15,33 +15,31 @@ Mobile Single-File Setup Guide:
   <title>해피니스 정신병동</title>
   <style>
     body { font-family: sans-serif; text-align: center; background: #f4f4f4; margin:0; padding:0; }
-    #main-screen, #game-container, #char-menu { max-width: 600px; margin: 40px auto; }
-    #main-screen h1 { font-size: 2rem; margin-bottom: 20px; }
-    button { padding: 8px 16px; font-size: 1rem; cursor: pointer; margin: 5px; }
+    #main-menu, #game-container, #char-menu { max-width: 600px; margin: 40px auto; }
+    .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 0 10px; }
     .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .card { width: 100px; height: 140px; border: 1px solid #333; border-radius: 8px;
             background: #fff; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 5px; cursor: pointer; position: relative; }
+            justify-content: space-between; padding: 5px; position: relative; }
     .card h3 { margin: 0; font-size: 0.9rem; font-weight: bold; }
-    .card .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
-    .card .level { position: absolute; bottom: 5px; left: 8px; color: green; font-weight: bold; }
-    .card .stars { position: absolute; bottom: 5px; right: 8px; }
-    .star { color: gold; font-size: 0.8rem; }
-    #battle-log { height: 100px; overflow-y: auto; background: #fff;
+    .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
+    .level { position: absolute; bottom: 5px; left: 8px; color: green; font-weight: bold; }
+    .stars { position: absolute; bottom: 5px; right: 8px; color: gold; }
+    #battle-log { height: 120px; overflow-y: auto; background: #fff;
                   border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; text-align: left; }
-    #char-menu { display: none; }
-    #char-popup { display: none; position: fixed; top:0; left:0; width:100%; height:100%;
-                 background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
-    #char-popup .popup-content { background: #fff; padding: 20px; border-radius: 8px; max-width: 80%; }
+    #char-menu, #char-popup { display: none; }
+    #char-popup { position: fixed; top:0; left:0; width:100%; height:100%;
+                 background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+    #char-popup .popup-content { background: #fff; padding: 20px; border-radius: 8px; max-width: 90%; text-align: left; }
   </style>
 </head>
 <body>
-  <!-- 메인 화면 -->
-  <div id="main-screen">
+  <!-- 메인 메뉴 (전투 전 화면) -->
+  <div id="main-menu">
     <h1>해피니스 정신병동</h1>
-    <button id="start-game">게임 시작</button>
-  </div>  <!-- 게임 화면 -->  <div id="game-container" style="display:none;">
-    <button id="char-menu-btn">캐릭터</button>
+    <button id="start-battle" class="btn">전투 시작</button>
+    <button id="char-menu-btn" class="btn">캐릭터 확인</button>
+  </div>  <!-- 전투 화면 -->  <div id="game-container" style="display:none;">
     <div id="enemy-area">
       <h2>적</h2>
       <div id="enemy-hand" class="hand"></div>
@@ -51,65 +49,104 @@ Mobile Single-File Setup Guide:
       <div id="player-hand" class="hand"></div>
     </div>
     <div id="battle-log"></div>
-    <button id="next-turn">다음 턴</button>
+    <button id="next-turn" class="btn">다음 턴</button>
   </div>  <!-- 캐릭터 메뉴 -->  <div id="char-menu">
     <h2>보유 캐릭터</h2>
     <div class="hand" id="char-hand"></div>
-    <button id="close-char-menu">닫기</button>
-  </div>  <!-- 팝업 -->  <div id="char-popup">
+    <button id="close-char-menu" class="btn">닫기</button>
+  </div>  <!-- 캐릭터 정보 팝업 -->  <div id="char-popup">
     <div class="popup-content">
-      <h3>캐릭터 정보</h3>
-      <p>정보가 없습니다.</p>
-      <button id="close-popup">닫기</button>
+      <h3 id="popup-name"></h3>
+      <p><strong>스킬 목록:</strong></p>
+      <ul id="skill-list"></ul>
+      <p><strong>패시브 스킬:</strong> 감정 무시 (아군 정신력 50 이하 시 위력 +2)</p>
+      <button id="close-popup" class="btn">닫기</button>
     </div>
   </div>  <script>
-    // 캐릭터 데이터 (기본 캐릭터)
-    const characters = [ { name:'김뭉싯', level:1, stars:1 } ];
+    // 캐릭터 정의
+    const characters = [ {
+      name: '김뭉싯', level:1, stars:1,
+      skills: [
+        { name:'방어적인 태도', base:9, min:1, max:4, effect:{type:'def', value:1} },
+        { name:'빈틈', base:10, min:3, max:5, effect:null },
+        { name:'바늘 쇄도', base:30, min:6, max:11, effect:null }
+      ],
+      passive: { name:'감정 무시', condition: (team)=> team.some(t=>t.health<=50), buff:{type:'atk', value:2} }
+    } ];
 
-    // 플레이어/적 정의 (기존)
-    class Card { constructor(name, power) { this.name=name; this.power=power; } }
-    class Player { constructor(name){ this.name=name; this.hand=[]; this.health=20;} draw(cards){this.hand.push(...cards);} }
-    const player=new Player('플레이어'), enemy=newPlayer= new Player('적');
-
-    // 게임 초기화
-    function initGame(){
-      const deck=[ new Card('공격 3',3), new Card('공격 5',5), new Card('공격 7',7), new Card('공격 2',2), new Card('공격 4',4) ];
-      player.draw(deck.splice(0,3)); enemy.draw(deck.splice(0,3));
-      renderHands(); log(`📢 게임 시작! HP: ${player.health} vs ${enemy.health}`);
+    // 플레이어/적 정의
+    class Player {
+      constructor(char){ this.char=char; this.health=100; }
+      drawSkill(){ const s=this.char.skills[Math.floor(Math.random()*this.char.skills.length)];
+        const power = s.min + Math.floor(Math.random()*(s.max-s.min+1));
+        let final = power;
+        // 패시브 적용
+        if(this.char.passive && this.char.passive.condition([this])) final += this.char.passive.buff.value;
+        return { ...s, power:final };
+      }
     }
-    function renderHands(){ /* ...기존 renderHands 코드 그대로... */ }
-    function playCard(i){ /* ... */ }
-    function enemyTurn(){ /* ... */ }
-    function log(t){ /* ... */ }
+    const player = new Player(characters[0]);
+    const enemy = new Player(characters[0]); // 임시: 동일 캐릭터 사용
 
-    // 캐릭터 메뉴 렌더링
+    function startTurn(){
+      document.getElementById('enemy-hand').innerHTML = '';
+      document.getElementById('player-hand').innerHTML = '';
+      const eCard = enemy.drawSkill(), pCard = player.drawSkill();
+      // 적 카드 공개
+      const eEl = createCardEl(eCard); document.getElementById('enemy-hand').append(eEl);
+      // 내 카드 표시 (클릭 시 전투 실행)
+      const pEl = createCardEl(pCard);
+      pEl.addEventListener('click', ()=>resolveCombat(pCard, eCard));
+      document.getElementById('player-hand').append(pEl);
+      log('🃏 카드를 확인하고 선택하세요.');
+    }
+
+    function resolveCombat(p, e){
+      log(`🔥 ${player.char.name} 힘 ${p.power} vs 적 힘 ${e.power}`);
+      if(p.power>e.power){ enemy.health -= p.power - (e.effect?.type==='def'? e.effect.value:0); log('🏆 승리! 적 체력: '+enemy.health); }
+      else if(p.power<e.power){ player.health -= e.power - (p.effect?.type==='def'? p.effect.value:0); log('💔 패배... 내 체력: '+player.health); }
+      else{ log('🔄 무승부, 재대결!'); startTurn(); return; }
+      document.getElementById('next-turn').style.display='inline-block';
+    }
+
+    function createCardEl(c){
+      const el=document.createElement('div'); el.className='card';
+      el.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>`+
+                     `<div>위력: ${c.power}</div>`+
+                     (c.effect? `<div>${c.effect.type==='def'?'방어':'버프'}+${c.effect.value}</div>`:'');
+      return el;
+    }
+
+    function log(t){ const d=document.getElementById('battle-log'); d.innerHTML+=`<p>${t}</p>`; d.scrollTop=d.scrollHeight; }
+
+    // 캐릭터 메뉴
     function showCharMenu(){
-      const handDiv=document.getElementById('char-hand');
-      handDiv.innerHTML='';
-      characters.forEach((c,idx)=>{
-        const card=document.createElement('div');card.className='card';
-        card.innerHTML=`<h3>${c.name}</h3><div class='photo'></div>`+
-                        `<span class='level'>Lv.${c.level}</span>`+
-                        `<div class='stars'>${'★'.repeat(c.stars)}</div>`;
-        card.addEventListener('click',()=>openPopup(c)); handDiv.append(card);
-      });
-      document.getElementById('char-menu').style.display='block';
+      const h=document.getElementById('char-hand'); h.innerHTML='';
+      characters.forEach(c=>{
+        const card=document.createElement('div'); card.className='card';
+        card.innerHTML = `<h3>${c.name}</h3><div class='photo'></div>`+
+                         `<span class='level'>Lv.${c.level}</span>`+
+                         `<div class='stars'>${'★'.repeat(c.stars)}</div>`;
+        card.addEventListener('click', ()=>openPopup(c)); h.append(card);
+      }); document.getElementById('char-menu').style.display='block';
     }
     function openPopup(c){
+      document.getElementById('popup-name').textContent = c.name;
+      const ul = document.getElementById('skill-list'); ul.innerHTML='';
+      c.skills.forEach(s=>{
+        const li = document.createElement('li');
+        li.textContent = `${s.name} - 기본${s.base}, 위력${s.min}~${s.max}`;
+        ul.append(li);
+      });
       document.getElementById('char-popup').style.display='flex';
-      // 정보 영역 업데이트 가능
     }
     function closePopup(){ document.getElementById('char-popup').style.display='none'; }
 
     // 이벤트 바인딩
-    document.getElementById('start-game').onclick=()=>{
-      document.getElementById('main-screen').style.display='none';
-      document.getElementById('game-container').style.display='block';
-      initGame();
-    };
+    document.getElementById('start-battle').onclick=()=>{ document.getElementById('main-menu').style.display='none'; document.getElementById('game-container').style.display='block'; startTurn(); };
     document.getElementById('char-menu-btn').onclick=showCharMenu;
-    document.getElementById('close-char-menu').onclick=()=>{document.getElementById('char-menu').style.display='none';};
+    document.getElementById('close-char-menu').onclick=()=>{ document.getElementById('char-menu').style.display='none'; };
     document.getElementById('close-popup').onclick=closePopup;
-    document.getElementById('next-turn').onclick=()=>{ /* ... */ };
+    document.getElementById('next-turn').onclick=()=>{ document.getElementById('next-turn').style.display='none'; startTurn(); };
   </script></body>
 </html>
