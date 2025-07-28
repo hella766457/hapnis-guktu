@@ -1,25 +1,41 @@
-<!-- 🛠 업데이트 사항만 반영: 안정성 보장 버전 --><!-- ✅ 반영한 업데이트:
-1. "공격 시작" 버튼 사라짐 오류 → 다시 항상 보이도록 수정
-2. 공격 전 위력 사전 노출 제거 → 공격 시 계산하여 로그에만 표시
-3. 아군도 적군 카드와 합쳐지면 데미지 받도록 반영 (자동 합 연산)
-4. 기타 오류 및 정의 누락 수정
--->(기존 <html> 구조 유지)
-
+<!DOCTYPE html><html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>해피니스 정신병동</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f4f4f4; margin:0; padding:0; }
+    #main-menu, #game-container { max-width: 600px; margin: 40px auto; }
+    .btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; margin: 5px; }
+    .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .card { width: 100px; height: 140px; border: 1px solid #333; border-radius: 8px;
+            background: #fff; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 5px; position: relative; }
+    .card h3 { margin: 0; font-size: 0.9rem; font-weight: bold; }
+    .photo { width: 100%; height: 60px; background: #eee; margin: 5px 0; }
+    .skill-desc { font-size: 0.7rem; color: #333; margin-top: 4px; }
+    .selected { border: 2px solid blue; }
+    .char-card { width: 70px; height: 90px; border: 1px solid #333; border-radius: 8px;
+               background: #fff; display: flex; flex-direction: column;
+               align-items: center; justify-content: space-between; padding: 5px; }
+    .char-photo { width: 100%; height: 40px; background: #ddd; }
+    .char-name { font-size: 0.8rem; font-weight: bold; }
+    .char-info { font-size: 0.7rem; color: green; }
+    .char-hp { font-size: 0.7rem; color: red; }
+    #battle-log { height: 120px; overflow-y: auto; background: #fff;
+                  border: 1px solid #ccc; padding: 10px; margin-top: 20px; text-align: left; }
+  </style>
+</head>
 <body>
   <div id="main-menu">
     <h1>해피니스 정신병동</h1>
     <button id="start-battle" class="btn">전투 시작</button>
-    <button id="view-characters" class="btn">캐릭터 확인</button>
-  </div>  <div id="char-menu" style="display:none;">
-    <h2>보유 캐릭터</h2>
-    <div id="char-list" class="hand"></div>
-    <button id="close-char-menu" class="btn">닫기</button>
   </div>  <div id="game-container" style="display:none;">
     <div id="enemy-list"><h3>적군 캐릭터</h3><div class="hand" id="enemy-character-list"></div></div>
     <div id="enemy-area"><h2>적 카드</h2><div id="enemy-hand" class="hand"></div></div>
     <div id="player-area"><h2>내 카드</h2><div id="player-hand" class="hand"></div></div>
     <div id="ally-list"><h3>아군 캐릭터</h3><div class="hand" id="ally-character-list"></div></div>
-    <button id="attack-btn" class="btn" style="display:inline-block;">공격 시작</button>
+    <button id="attack-btn" class="btn">공격 시작</button>
     <button id="next-turn" class="btn" style="display:none;">다음 턴</button>
     <div id="battle-log"></div>
   </div>  <script>
@@ -176,3 +192,4 @@
       renderCharacterLists();
     });
   </script></body>
+</html>
