@@ -1,0 +1,77 @@
+<!--
+Project: 간단한 카드형 턴제 RPG 게임 (Single HTML File)
+Host: GitHub Pages
+
+Mobile Single-File Setup Guide:
+1. GitHub 모바일 앱 또는 웹에서 새 저장소 생성 (예: card-rpg-game)
+2. 저장소 페이지에서 'Add file' > 'Create new file' 클릭
+3. 파일 이름에 `index.html` 입력 후, 아래 전체 코드를 붙여넣고 Commit changes
+4. 저장소 메인 화면 > Settings > Pages 이동
+5. 'Source'를 main branch, root(/)로 설정 후 Save
+6. 배포된 URL을 열어 모바일 브라우저에서 바로 플레이하세요!
+--><!DOCTYPE html><html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Card RPG Game</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f4f4f4; }
+    #game-container { max-width: 600px; margin: 0 auto; }
+    .hand { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .card { width: 80px; height: 120px; border: 1px solid #333; border-radius: 8px;
+            background: #fff; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 5px; cursor: pointer; }
+    #battle-log { height: 100px; overflow-y: auto; background: #fff;
+                  border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; }
+    button { padding: 8px 16px; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Card RPG Game</h1>
+  <div id="game-container">
+    <div id="enemy-area">
+      <h2>Enemy</h2>
+      <div id="enemy-hand" class="hand"></div>
+    </div>
+    <div id="player-area">
+      <h2>Player</h2>
+      <div id="player-hand" class="hand"></div>
+    </div>
+    <div id="battle-log"></div>
+    <button id="next-turn">다음 턴</button>
+  </div>  <script>
+    class Card { constructor(name, power) { this.name = name; this.power = power; } }
+    class Player { constructor(name) { this.name=name; this.hand=[]; this.health=20; } draw(cards){ this.hand.push(...cards);} }
+    const player = new Player('Player');
+    const enemy = new Player('Enemy');
+
+    function initGame() {
+      const deck = [
+        new Card('Attack 3',3), new Card('Attack 5',5), new Card('Attack 7',7),
+        new Card('Attack 2',2), new Card('Attack 4',4)
+      ];
+      player.draw(deck.splice(0,3));
+      enemy.draw(deck.splice(0,3));
+      renderHands();
+    }
+    function renderHands() {
+      const ph = document.getElementById('player-hand');
+      const eh = document.getElementById('enemy-hand');
+      ph.innerHTML=''; eh.innerHTML='';
+      player.hand.forEach((card,i)=>{
+        const el=document.createElement('div');el.className='card';
+        el.innerHTML=`<strong>${card.name}</strong><span>Power: ${card.power}</span>`;
+        el.addEventListener('click',()=>playCard(i));ph.append(el);
+      });
+      enemy.hand.forEach(()=>{const b=document.createElement('div');b.className='card';b.textContent='?';eh.append(b);});
+    }
+    function playCard(i){
+      const c=player.hand.splice(i,1)[0];enemy.health-=c.power;log(`${player.name} used ${c.name}! Enemy HP: ${enemy.health}`);
+      if(enemy.health<=0){log('Victory!');}else{enemyTurn();}renderHands();
+    }
+    function enemyTurn(){const c=enemy.hand.splice(0,1)[0];player.health-=c.power;log(`${enemy.name} used ${c.name}! Player HP: ${player.health}`);if(player.health<=0)log('Defeat...');}
+    function log(t){const d=document.getElementById('battle-log');d.innerHTML+=`<p>${t}</p>`;d.scrollTop=d.scrollHeight;}
+    document.getElementById('next-turn').addEventListener('click',()=>{if(player.hand.length && enemy.hand.length)log('--- New Turn ---');else log('Game Over');});
+    initGame();
+  </script></body>
+</html>
